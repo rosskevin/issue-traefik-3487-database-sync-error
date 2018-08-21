@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# when receiving:
+# error: google: could not find default credentials. See https://developers.google.com/accounts/docs/application-default-credentials for more information.
+# may need to:
+# gcloud auth application-default login
+
+
+source ${BASH_SOURCE%/*}/../../environments/${GOOGLE_CLOUD_PROJECT}/.env; source ${BASH_SOURCE%/*}/../../environments/base.env
+
+# Get kubectl ready by getting GKE credentials for the project. This will insert auth data and project info in ~/.kube/config
+gcloud container clusters get-credentials ${GKE_CLUSTER} --zone ${GKE_CLUSTER_ZONE} --project ${GOOGLE_CLOUD_PROJECT}
+
+# show the current project, zone and cluster
+kubectl config current-context
+
+# show the active gcloud config
+gcloud config list
+
+kubectl get nodes

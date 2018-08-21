@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+# NOTE!!! use the dot space execution so var export takes effect on parent:
+#       . ./use foo
+
+# GOOGLE_CLOUD_ACCOUNT must be in the ~/.zshrc
+export GOOGLE_CLOUD_PROJECT=$1
+echo -e "Using the ${GOOGLE_CLOUD_PROJECT} environment with user account ${GOOGLE_CLOUD_ACCOUNT}"
+
+source ./environments/${GOOGLE_CLOUD_PROJECT}/.env; source ./environments/base.env
+
+# Create a config for project (so we can activate it by name) - may complain
+gcloud config configurations create ${GOOGLE_CLOUD_PROJECT}
+
+# set the project id globally so we don't have to keep specifying it
+gcloud config set project ${GOOGLE_CLOUD_PROJECT}
+
+# set primary region, zone, account
+# gcloud config set container/use_client_certificate true
+gcloud config unset container/use_client_certificate
+gcloud config set compute/region ${GKE_CLUSTER_REGION}
+gcloud config set compute/zone ${GKE_CLUSTER_ZONE}
+
+# set primary region, zone, account
+gcloud config set account ${GOOGLE_CLOUD_ACCOUNT}
+
+# note gcloud and kubectl can operate on different contexts, so switch both
+gcloud config configurations activate ${GOOGLE_CLOUD_PROJECT}
+
+# show the active config
+gcloud config list
+
+echo -e "\n"

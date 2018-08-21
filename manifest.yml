@@ -1,0 +1,552 @@
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  labels:
+    ksonnet.io/component: traefik.traefik
+  name: traefik
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - services
+      - endpoints
+      - secrets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - extensions
+    resources:
+      - ingresses
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    ksonnet.io/component: traefik.traefik
+  name: traefik
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: traefik
+subjects:
+  - kind: ServiceAccount
+    name: traefik
+    namespace: infrastructure
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: world
+    ksonnet.io/component: hello.world
+  name: world
+  namespace: default
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    app: world
+---
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  labels:
+    app: world
+    ksonnet.io/component: hello.world
+  name: world
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: world
+  template:
+    metadata:
+      labels:
+        app: world
+    spec:
+      containers:
+        - image: gcr.io/google-samples/hello-app:1.0
+          name: world
+          ports:
+            - containerPort: 8080
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: traefik
+  labels:
+    app: world
+    ksonnet.io/component: hello.world
+  name: world
+  namespace: default
+spec:
+  rules:
+    - host: hello.foo.com
+      http:
+        paths:
+          - backend:
+              serviceName: world
+              servicePort: 80
+---
+apiVersion: v1
+data:
+  traefik.toml: |
+    logLevel = "INFO"
+    sendAnonymousUsage = true
+    defaultEntryPoints = ["http","https"]
+    [entryPoints]
+        [entryPoints.traefik]
+            address = ":8080"  
+        [entryPoints.http]
+            address = ":80"
+            compress = true
+        [entryPoints.http.redirect]
+            regex = "^http://(.*)"
+            replacement = "https://$1"
+        [entryPoints.https]
+            address = ":443"
+            compress = true
+        [entryPoints.https.tls]  
+    [api]
+        entryPoint = "traefik"
+        dashboard = true    
+        [api.statistics]
+            recentErrors = 10
+    [kubernetes]
+    [acme]
+        email = "admin@foo.com"
+        acmeLogging = true
+        storage = "traefik/acme/account"
+        entryPoint = "https"
+        onHostRule = true
+        # caServer = "https://acme-v02.api.letsencrypt.org/directory"
+        caServer = "https://acme-staging-v02.api.letsencrypt.org/directory"
+        [acme.dnsChallenge]
+            provider = "gcloud"
+    [consul]
+        endpoint = "consul:8500"
+        watch = true
+        prefix = "traefik"
+kind: ConfigMap
+metadata:
+  labels:
+    ksonnet.io/component: traefik.traefik
+  name: traefik
+  namespace: infrastructure
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+  labels:
+    app: consul
+    ksonnet.io/component: consul.consul
+  name: consul
+  namespace: infrastructure
+spec:
+  clusterIP: None
+  ports:
+    - name: http
+      port: 8500
+    - name: rpc
+      port: 8400
+    - name: serflan-tcp
+      port: 8301
+      protocol: TCP
+    - name: serflan-udp
+      port: 8301
+      protocol: UDP
+    - name: serfwan-tcp
+      port: 8302
+      protocol: TCP
+    - name: serfwan-udp
+      port: 8302
+      protocol: UDP
+    - name: server
+      port: 8300
+    - name: consuldns-tcp
+      port: 8600
+    - name: consuldns-udp
+      port: 8600
+      protocol: UDP
+  selector:
+    app: consul
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: consul
+    ksonnet.io/component: consul.consul
+  name: consul-ui
+  namespace: infrastructure
+spec:
+  ports:
+    - name: http
+      port: 8500
+  selector:
+    app: consul
+  type: NodePort
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: traefik
+    ksonnet.io/component: traefik.traefik
+  name: traefik
+  namespace: infrastructure
+spec:
+  externalTrafficPolicy: Cluster
+  loadBalancerIP: 11.11.11.11
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+    - name: https
+      port: 443
+  selector:
+    app: traefik
+  type: LoadBalancer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: traefik
+    ksonnet.io/component: traefik.traefik-dashboard
+  name: traefik-dashboard
+  namespace: infrastructure
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    app: traefik
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    ksonnet.io/component: traefik.traefik
+  name: traefik
+  namespace: infrastructure
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  labels:
+    app: consul
+    ksonnet.io/component: consul.consul
+  name: consul
+  namespace: infrastructure
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: consul
+  serviceName: consul
+  template:
+    metadata:
+      labels:
+        app: consul
+      name: consul
+      namespace: infrastructure
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - consul
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+      containers:
+        - command:
+            - /bin/sh
+            - -ec
+            - |-
+              IP=$(hostname -i)
+              if [ -e /etc/consul/secrets/gossip-key ]; then
+                  echo "{\"encrypt\": \"$(base64 /etc/consul/secrets/gossip-key)\"}" > /etc/consul/encrypt.json
+                  GOSSIP_KEY="-config-file /etc/consul/encrypt.json"
+              fi
+
+              for i in $(seq 0 $((${INITIAL_CLUSTER_SIZE} - 1))); do
+                  while true; do
+                      echo "Waiting for ${STATEFULSET_NAME}-${i}.${STATEFULSET_NAME} to come up"
+                      ping -W 1 -c 1 ${STATEFULSET_NAME}-${i}.${STATEFULSET_NAME}.${STATEFULSET_NAMESPACE}.svc > /dev/null && break
+                      sleep 1s
+                  done
+              done
+
+              PEERS=""
+              for i in $(seq 0 $((${INITIAL_CLUSTER_SIZE} - 1))); do
+                  NEXT_PEER="$(ping -c 1 ${STATEFULSET_NAME}-${i}.${STATEFULSET_NAME}.${STATEFULSET_NAMESPACE}.svc | awk -F'[()]' '/PING/{print $2}')"
+                  if [ "${NEXT_PEER}" != "${POD_IP}" ]; then
+                      PEERS="${PEERS}${PEERS:+ } -retry-join ${STATEFULSET_NAME}-${i}.${STATEFULSET_NAME}.${STATEFULSET_NAMESPACE}.svc"
+                  fi
+              done
+
+              exec /bin/consul agent \
+                  -ui \
+                  -domain=consul \
+                  -data-dir=/var/lib/consul \
+                  -server \
+                  -bootstrap-expect=${INITIAL_CLUSTER_SIZE} \
+                  -disable-keyring-file \
+                  -bind=0.0.0.0 \
+                  -advertise=${IP} \
+                  ${PEERS} \
+                  ${GOSSIP_KEY} \
+                  -client=0.0.0.0 \
+                  -dns-port=${DNSPORT} \
+                  -http-port=8500
+          env:
+            - name: INITIAL_CLUSTER_SIZE
+              value: "3"
+            - name: STATEFULSET_NAME
+              value: consul
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: STATEFULSET_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: DNSPORT
+              value: "8600"
+          image: consul:1.2.2
+          imagePullPolicy: Always
+          livenessProbe:
+            exec:
+              command:
+                - consul
+                - members
+            initialDelaySeconds: 300
+            timeoutSeconds: 5
+          name: consul
+          ports:
+            - containerPort: 8500
+              name: http
+            - containerPort: 8400
+              name: rpc
+            - containerPort: 8301
+              name: serflan-tcp
+              protocol: TCP
+            - containerPort: 8301
+              name: serflan-udp
+              protocol: UDP
+            - containerPort: 8302
+              name: serfwan-tcp
+              protocol: TCP
+            - containerPort: 8302
+              name: serfwan-udp
+              protocol: UDP
+            - containerPort: 8300
+              name: server
+            - containerPort: 8600
+              name: consuldns-tcp
+            - containerPort: 8600
+              name: consuldns-udp
+              protocol: UDP
+          resources: {}
+          volumeMounts:
+            - mountPath: /var/lib/consul
+              name: datadir
+            - mountPath: /etc/consul/secrets
+              name: gossip-key
+              readOnly: true
+      securityContext:
+        fsGroup: 1000
+      volumes:
+        - name: gossip-key
+          secret:
+            secretName: consul-gossip-key
+  updateStrategy:
+    type: RollingUpdate
+  volumeClaimTemplates:
+    - metadata:
+        name: datadir
+        namespace: infrastructure
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  labels:
+    app: traefik
+    ksonnet.io/component: traefik.traefik
+  name: traefik
+  namespace: infrastructure
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: traefik
+  template:
+    metadata:
+      labels:
+        app: traefik
+    spec:
+      containers:
+        - args:
+            - --configfile=/config/traefik.toml
+          env:
+            - name: GCE_PROJECT
+              value: foo
+            - name: GCE_SERVICE_ACCOUNT_FILE
+              value: /secrets/traefik-dns-sa.json
+          image: traefik:1.6.6
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 80
+            timeoutSeconds: 2
+          name: traefik
+          ports:
+            - containerPort: 80
+              name: http
+              protocol: TCP
+            - containerPort: 8880
+              name: httpn
+              protocol: TCP
+            - containerPort: 443
+              name: https
+              protocol: TCP
+            - containerPort: 8080
+              name: dash
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 1
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 80
+            timeoutSeconds: 2
+          resources:
+            limits:
+              cpu: 100m
+              memory: 50Mi
+            requests:
+              cpu: 100m
+              memory: 30Mi
+          volumeMounts:
+            - mountPath: /config
+              name: config
+            - mountPath: /secrets
+              name: traefik-dns-sa-credentials
+      serviceAccountName: traefik
+      terminationGracePeriodSeconds: 60
+      volumes:
+        - configMap:
+            name: traefik
+          name: config
+        - name: traefik-dns-sa-credentials
+          secret:
+            secretName: traefik-dns-sa-credentials
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    app: traefik
+    ksonnet.io/component: traefik.traefik
+  name: traefik-storeconfig-job
+  namespace: infrastructure
+spec:
+  template:
+    metadata:
+      labels:
+        app: traefik
+      name: traefik-storeconfig-job
+      namespace: infrastructure
+    spec:
+      containers:
+        - args:
+            - storeconfig
+            - --configfile=/config/traefik.toml
+          image: traefik:1.6.6
+          name: traefik-storeconfig-job
+          volumeMounts:
+            - mountPath: /config
+              name: config
+      restartPolicy: Never
+      volumes:
+        - configMap:
+            name: traefik
+          name: config
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    ingress.kubernetes.io/auth-secret: traefik-dashboard-admin
+    ingress.kubernetes.io/auth-type: basic
+    kubernetes.io/ingress.class: traefik
+  labels:
+    app: traefik
+    ksonnet.io/component: traefik.traefik-dashboard
+  name: traefik-dashboard
+  namespace: infrastructure
+spec:
+  rules:
+    - host: traefik.foo.com
+      http:
+        paths:
+          - backend:
+              serviceName: traefik-dashboard
+              servicePort: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+    app: consul
+    ksonnet.io/component: consul.consul
+  name: consul-pdb
+  namespace: infrastructure
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: consul
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+    app: traefik
+    ksonnet.io/component: traefik.traefik
+  name: traefik-pdb
+  namespace: infrastructure
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: traefik

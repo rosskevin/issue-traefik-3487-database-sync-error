@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+source ${BASH_SOURCE%/*}/../../environments/${GOOGLE_CLOUD_PROJECT}/.env; 
+source ${BASH_SOURCE%/*}/../../environments/base.env
+
+# -------------------
+# Create the cluster
+#
+# Notes:
+# - `machine-type` default n1-standard-1 (vCPUs: 1, RAM: 3.75 GB), n1-standard-2 (vCPUs: 2, RAM: 7.5 GB)
+# - `node-locations` indicate where to run including the primary `zone` (e.g. multi-zone setup)
+# - `num-nodes` indicate how many _in *each* zone_ specified by `node-locations`
+# - don't forget to enable the api
+#
+# @see `gcloud container clusters create --help` or https://cloud.google.com/sdk/gcloud/reference/container/clusters/create
+gcloud beta container clusters create \
+  ${GKE_CLUSTER} \
+  --cluster-version=1.10.5-gke.3 \
+  --enable-autorepair \
+  --enable-autoscaling \
+  --enable-autoupgrade \
+  --enable-cloud-logging \
+  --enable-cloud-monitoring \
+  --machine-type=${GKE_CLUSTER_MACHINE_TYPE} \
+  --max-nodes=${GKE_CLUSTER_MAX_NODES} \
+  --node-locations=${GKE_CLUSTER_NODE_LOCATIONS} \
+  --num-nodes=${GKE_CLUSTER_NUM_NODES} \
+  --scopes="default,gke-default,cloud-platform,storage-full,sql-admin,userinfo-email" \
+  --zone=${GKE_CLUSTER_ZONE}
+
+# --enable-stackdriver-kubernetes \ failed with 404
+
+gcloud container clusters get-credentials ${GKE_CLUSTER}
+
+# verify access to the cluster
+# kubectl config get-contexts
+# kubectl config use-context __context_name__
+# kubectl get nodes

@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+source ${BASH_SOURCE%/*}/../../../environments/${GOOGLE_CLOUD_PROJECT}/.env; 
+source ${BASH_SOURCE%/*}/../../../environments/base.env; 
+source ${BASH_SOURCE%/*}/.env
+
+# ---------------
+# exposing to the internet
+
+# https://cloud.google.com/kubernetes-engine/docs/tutorials/configuring-domain-name-static-ip#step_2a_using_a_service
+# https://kubernetes.io/docs/concepts/services-networking
+
+# reserve a static external ip for the traefix service (not an ingress itself)
+gcloud compute addresses create traefik-ip --region=${GKE_CLUSTER_REGION}
+gcloud compute addresses describe traefik-ip --region=${GKE_CLUSTER_REGION}

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+./reserve-ip
+# now you will need to set this ip in your environment params.libsonnet
+# "traefik.traefik" +: {
+#   loadBalancerIP: "35.188.24.94",
+# }
+
+./service-account
+./key
+./secret
+./secret-dashboard

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+source ${BASH_SOURCE%/*}/../../../environments/${GOOGLE_CLOUD_PROJECT}/.env; 
+source ${BASH_SOURCE%/*}/../../../environments/base.env; 
+source ${BASH_SOURCE%/*}/.env
+
+rm -rf ${TRAEFIK_DNS_SA_DEST}
+mkdir -p $(dirname ${TRAEFIK_DNS_SA_DEST})
+
+gcloud iam service-accounts keys create \
+    ${TRAEFIK_DNS_SA_DEST} \
+    --iam-account=${TRAEFIK_DNS_SA_EMAIL}
