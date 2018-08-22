@@ -401,7 +401,7 @@ metadata:
   name: traefik
   namespace: infrastructure
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: traefik
@@ -536,17 +536,3 @@ spec:
   selector:
     matchLabels:
       app: consul
----
-apiVersion: policy/v1beta1
-kind: PodDisruptionBudget
-metadata:
-  labels:
-    app: traefik
-    ksonnet.io/component: traefik.traefik
-  name: traefik-pdb
-  namespace: infrastructure
-spec:
-  maxUnavailable: 1
-  selector:
-    matchLabels:
-      app: traefik
